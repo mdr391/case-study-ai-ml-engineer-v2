@@ -1,0 +1,74 @@
+# Third Way Health - Engineering Case Study
+
+## Scheduling Engine Challenge (30 minutes)
+
+**Timebox:** 30 minutes  
+**Format:** live screenshare, think out loud  
+**AI tools:** allowed and expected
+
+## Scenario
+
+Build a small scheduling engine service that an agent can use for slot search and troubleshooting.
+
+The project includes a light scaffold, and you can shape the service contract as you see fit.
+
+## What is provided
+
+- Minimal folder scaffold under `app/`, `tests/`, and `skills/`.
+- Placeholder files with TODOs.
+
+## What to build
+
+By the end of the session, we should be able to:
+
+- run a FastAPI service,
+- send a scheduling query from an agent-facing workflow,
+- inspect an explain/diagnostics response (or equivalent),
+- review your skill draft and eval proposal.
+
+You can decide the exact interface, payloads, and internal logic.
+
+## Real-world requirements (high-level)
+
+Use these as initial assumptions:
+
+- The service should support typical scheduling constraints (time windows, duration, provider/resource preferences).
+- Responses should be useful for both humans and agents, including enough context to troubleshoot "no availability."
+- The design should be extensible so new constraints can be added without major rewrites.
+- Invalid or conflicting requests should return clear, actionable errors.
+- Performance should be appropriate for interactive usage (low-latency responses for normal query sizes).
+- Include a basic approach for testing both API correctness and agent behavior.
+
+## How you'll be evaluated
+
+We evaluate both your solution and your working approach:
+
+- **Planning and decisions:** clarity of assumptions, decomposition, and trade-offs.
+- **API and query design:** whether your interface is understandable and usable by an agent.
+- **Execution quality:** ability to deliver a working thin slice within the timebox.
+- **Diagnostics and testing approach:** ability to explain outcomes and define practical checks.
+- **Agent collaboration:** effective use of AI tools with validation.
+
+Minimum expectations:
+
+- You present a clear plan.
+- You demo at least one working end-to-end query path.
+- You show one diagnostics/no-results explanation path (or equivalent).
+- Your `SKILL.md` and eval proposal match your actual contract.
+
+## GitHub Codespaces
+
+- Open this repository in GitHub Codespaces.
+- The devcontainer setup runs automatically on first start.
+- `ANTHROPIC_API_KEY` will be provided for the session (via Codespaces secret/interviewer setup).
+
+## Local run
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+cp .env.example .env
+python verify_setup.py
+uvicorn app.main:app --reload
+```

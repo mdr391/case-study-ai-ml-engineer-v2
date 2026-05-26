@@ -1,0 +1,38 @@
+{
+  "version": "0.1",
+  "suite": "candidate-defined-evals",
+  "notes": [
+    "This file is intentionally open-ended.",
+    "Candidate should define evals after finalizing API + skill contract."
+  ],
+  "required_sections": {
+    "service_evals": [
+      {
+        "id": "",
+        "prompt": "",
+        "request": {
+          "method": "",
+          "path": "",
+          "body": {}
+        },
+        "assertions": []
+      }
+    ],
+    "skill_evals": [
+      {
+        "id": "",
+        "prompt": "",
+        "expected_behavior": "",
+        "assertions": []
+      }
+    ],
+    "agent_end_to_end_evals": [
+      {
+        "id": "",
+        "scenario": "",
+        "success_criteria": [],
+        "failure_signals": []
+      }
+    ]
+  }
+}
