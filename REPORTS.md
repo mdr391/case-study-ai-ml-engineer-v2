@@ -84,6 +84,17 @@ Deterministic state machine (`appointment/`), not yet committed at time of writi
 - **Results:** session tests 3 passed; full suite **26 passed** (Python 3.11.15).
 - **Limitations:** in-memory singletons (workflow, repository, audit) — state resets on restart; transcript stores caller turns only; a single shared workflow instance across sessions (isolation is via per-session `ConversationContext` + `session_id`-scoped idempotency keys).
 
+## Phase 8 — Live demo runs (over HTTP)
+Ran `uvicorn session_service.main:app --host 0.0.0.0 --port 8000` and drove real
+conversations via `POST /sessions/{id}/messages` (server stopped afterward; port
+never made public).
+
+- **Happy path + duplicate confirm:** request → `awaiting_verification` → verify (`Nguyen 1990-02-14`) → `awaiting_reason` → reason → `awaiting_slot_selection` (3 slots offered) → choose `1` → `awaiting_confirmation` (read-back: Dr. Alice Nguyen / Clinic North / 2026-08-03 / 09:00) → `yes` → `booked` (draft_001) → `yes` again → still `booked`, same `draft_001`, no second draft.
+- **Failed verification → handoff:** wrong creds twice → terminal `handoff`; no patient verified, nothing booked.
+- **Emergency reason → safety handoff:** after verifying, "chest pain" → terminal `handoff` with a non-clinical safety message; no slots offered, nothing booked.
+
+All three matched the automated tests; behavior confirmed against a live server, not just `TestClient`.
+
 ---
 
 ## Git / commits (fork `origin`, branch `main`)
