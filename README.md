@@ -72,3 +72,37 @@ cp .env.example .env
 python verify_setup.py
 uvicorn app.main:app --reload
 ```
+
+## Session Service (first runnable skeleton)
+
+A minimal, in-memory agent-session API. **Target runtime: Python 3.12** (the
+code is 3.12-compatible and also runs on 3.11). Scope is deliberately tiny — no
+LLM, audio, STT/TTS, telephony, EHR, real database, real patient data, or
+appointment booking.
+
+Endpoints:
+
+- `GET /health` → `{"status": "ok"}`
+- `POST /sessions` → creates a session, returns `session_id` + `trace_id`
+- `POST /sessions/{session_id}/messages` → appends a text-transcript turn
+
+Run:
+
+```bash
+pip install -r requirements.txt
+uvicorn session_service.main:app --reload
+```
+
+Test (one smoke test):
+
+```bash
+python -m pytest tests/test_session_smoke.py -q
+```
+
+Manually test health:
+
+```bash
+curl -s http://127.0.0.1:8000/health          # {"status":"ok"}
+# or open http://127.0.0.1:8000/docs in a browser
+```
+
