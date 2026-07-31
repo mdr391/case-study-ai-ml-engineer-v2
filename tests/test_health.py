@@ -1,6 +1,11 @@
-import pytest
+from fastapi.testclient import TestClient
+
+from app.main import app
+
+client = TestClient(app)
 
 
-@pytest.mark.skip(reason="Candidate TODO: define your own API tests.")
-def test_candidate_health_contract() -> None:
-    assert True
+def test_health_returns_ok() -> None:
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}

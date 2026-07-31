@@ -1,38 +1,167 @@
 {
   "version": "0.1",
-  "suite": "candidate-defined-evals",
+  "suite": "scheduling-engine-evals",
   "notes": [
-    "This file is intentionally open-ended.",
-    "Candidate should define evals after finalizing API + skill contract."
+    "Evals target the finalized contract: POST /schedule/search + GET /health.",
+    "Backed by the deterministic synthetic fixture (36 slots) in app/data.py.",
+    "service_evals are runnable HTTP checks; skill_evals and agent_end_to_end_evals",
+    "describe expected agent behavior when using SKILL.md."
   ],
-  "required_sections": {
-    "service_evals": [
-      {
-        "id": "",
-        "prompt": "",
-        "request": {
-          "method": "",
-          "path": "",
-          "body": {}
-        },
-        "assertions": []
-      }
-    ],
-    "skill_evals": [
-      {
-        "id": "",
-        "prompt": "",
-        "expected_behavior": "",
-        "assertions": []
-      }
-    ],
-    "agent_end_to_end_evals": [
-      {
-        "id": "",
-        "scenario": "",
-        "success_criteria": [],
-        "failure_signals": []
-      }
-    ]
-  }
+  "service_evals": [
+    {
+      "id": "svc-happy-cardiology",
+      "prompt": "Find cardiology openings on 2026-08-03 morning.",
+      "request": {
+        "method": "POST",
+        "path": "/schedule/search",
+        "body": {
+          "time_window": {"start": "2026-08-03T09:00:00Z", "end": "2026-08-03T12:00:00Z"},
+          "duration_minutes": 30,
+          "specialty": "cardiology",
+          "max_results": 3
+        }
+      },
+      "assertions": [
+        {"target": "status_code", "equals": 200},
+        {"target": "$.diagnostics.matched", "equals": 12},
+        {"target": "$.results", "length": 3},
+        {"target": "$.results[0].start", "equals": "2026-08-03T09:00:00Z"},
+        {"target": "$.results[*].specialty", "all_equal": "cardiology"}
+      ]
+    },
+    {
+      "id": "svc-diagnostics-duration",
+      "prompt": "Book a 60-minute visit on 2026-08-03 morning.",
+      "request": {
+        "method": "POST",
+        "path": "/schedule/search",
+        "body": {
+          "time_window": {"start": "2026-08-03T09:00:00Z", "end": "2026-08-03T12:00:00Z"},
+          "duration_minutes": 60
+        }
+      },
+      "assertions": [
+        {"target": "status_code", "equals": 200},
+        {"target": "$.results", "length": 0},
+        {"target": "$.diagnostics.matched", "equals": 0},
+        {"target": "$.diagnostics.summary", "contains": "duration_minutes"},
+        {"target": "$.diagnostics.filter_trace[?(@.constraint=='duration_minutes')].candidates_after", "equals": 0},
+        {"target": "$.diagnostics.relaxation_hints[?(@.constraint=='duration_minutes')].would_match", "equals": 15},
+        {"target": "$.diagnostics.suggestions", "non_empty": true}
+      ]
+    },
+    {
+      "id": "svc-sparse-relaxation-hint",
+      "prompt": "Find a 30-minute cardiology slot at clinic-south on 2026-08-03 morning.",
+      "request": {
+        "method": "POST",
+        "path": "/schedule/search",
+        "body": {
+          "time_window": {"start": "2026-08-03T09:00:00Z", "end": "2026-08-03T12:00:00Z"},
+          "duration_minutes": 30,
+          "specialty": "cardiology",
+          "location_id": "clinic-south"
+        }
+      },
+      "assertions": [
+        {"target": "status_code", "equals": 200},
+        {"target": "$.diagnostics.matched", "equals": 6},
+        {"target": "$.diagnostics.summary", "non_empty": true},
+        {"target": "$.diagnostics.relaxation_hints[?(@.constraint=='location_id')].would_match", "equals": 12}
+      ]
+    },
+    {
+      "id": "svc-error-window-conflict",
+      "prompt": "Search with an end time before the start time.",
+      "request": {
+        "method": "POST",
+        "path": "/schedule/search",
+        "body": {
+          "time_window": {"start": "2026-08-03T12:00:00Z", "end": "2026-08-03T09:00:00Z"},
+          "duration_minutes": 30
+        }
+      },
+      "assertions": [
+        {"target": "status_code", "equals": 422},
+        {"target": "$.error", "equals": "invalid_request"},
+        {"target": "$.field", "equals": "time_window"}
+      ]
+    },
+    {
+      "id": "svc-error-missing-field",
+      "prompt": "Search without a time window.",
+      "request": {
+        "method": "POST",
+        "path": "/schedule/search",
+        "body": {"duration_minutes": 30}
+      },
+      "assertions": [
+        {"target": "status_code", "equals": 422},
+        {"target": "$.error", "equals": "invalid_request"},
+        {"target": "$.field", "equals": "time_window"}
+      ]
+    }
+  ],
+  "skill_evals": [
+    {
+      "id": "skill-report-happy",
+      "prompt": "Use the scheduling skill to find a 30-minute cardiology slot on the morning of 2026-08-03.",
+      "expected_behavior": "Calls POST /schedule/search with specialty=cardiology and reports the earliest slots as 'provider_name @ start (location_id)'.",
+      "assertions": [
+        "Mentions at least one real slot returned by the API (e.g. Dr. Alice Nguyen at 09:00).",
+        "Does not invent providers, times, or locations absent from the response.",
+        "Provides no clinical advice."
+      ]
+    },
+    {
+      "id": "skill-explain-no-availability",
+      "prompt": "Use the scheduling skill to book a 60-minute visit on the morning of 2026-08-03.",
+      "expected_behavior": "Recognizes empty results, relays diagnostics.summary, names the limiting constraint from filter_trace, and offers the top relaxation_hint plus the suggestion.",
+      "assertions": [
+        "States clearly that no slots matched (relaying diagnostics.summary).",
+        "Attributes the empty result to the duration constraint.",
+        "Offers the relaxation hint ('relax duration to reach N slots') and the suggestion rather than inventing a reason."
+      ]
+    },
+    {
+      "id": "skill-handle-invalid-request",
+      "prompt": "Use the scheduling skill with a time window whose end is before its start.",
+      "expected_behavior": "Surfaces the 422 structured error, relaying the message and the offending field.",
+      "assertions": [
+        "Reports the request was invalid.",
+        "Names the offending field (time_window).",
+        "Does not retry blindly or fabricate a successful result."
+      ]
+    }
+  ],
+  "agent_end_to_end_evals": [
+    {
+      "id": "e2e-find-and-report",
+      "scenario": "A patient-facing agent is asked for the earliest cardiology appointment on 2026-08-03 and relays concrete options.",
+      "success_criteria": [
+        "Agent issues a valid /schedule/search call.",
+        "Agent returns at least one concrete, API-sourced slot.",
+        "Slot details (provider, start, location) match the API response exactly."
+      ],
+      "failure_signals": [
+        "Hallucinated slots or providers.",
+        "Clinical advice or diagnosis offered.",
+        "Reports availability when the API returned none."
+      ]
+    },
+    {
+      "id": "e2e-troubleshoot-no-availability",
+      "scenario": "An agent is asked to book a duration no slot can accommodate and must explain why and suggest a next step.",
+      "success_criteria": [
+        "Agent correctly reports no availability, relaying diagnostics.summary.",
+        "Agent identifies the limiting constraint from filter_trace.",
+        "Agent offers a concrete next step from relaxation_hints/suggestions (e.g. try a shorter appointment)."
+      ],
+      "failure_signals": [
+        "Invents a slot to satisfy the request.",
+        "Gives a wrong or fabricated reason for the empty result.",
+        "Silently returns nothing with no explanation."
+      ]
+    }
+  ]
 }
