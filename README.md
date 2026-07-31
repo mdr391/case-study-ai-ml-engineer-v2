@@ -73,6 +73,11 @@ python verify_setup.py
 uvicorn app.main:app --reload
 ```
 
+## Project docs
+
+- [`DESIGN.md`](DESIGN.md) — design of the read-only scheduling slice.
+- [`REPORTS.md`](REPORTS.md) — chronological build reports (files, commands, test results, assumptions, risks) for every phase.
+
 ## Session Service (first runnable skeleton)
 
 A minimal, in-memory agent-session API. **Target runtime: Python 3.12** (the
