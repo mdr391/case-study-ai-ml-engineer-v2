@@ -7,6 +7,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from appointment.state import ConversationState
+
 Role = Literal["caller", "agent", "system"]
 
 
@@ -55,16 +57,17 @@ class SessionCreatedResponse(BaseModel):
     created_at: datetime
 
 
-class MessageAcceptedResponse(BaseModel):
+class TurnResponse(BaseModel):
+    """Result of processing one transcript turn through the appointment workflow."""
+
     model_config = ConfigDict(extra="forbid")
 
     session_id: str
     trace_id: str
-    message_id: str
-    index: int = Field(ge=0, description="Zero-based position of this turn in the session.")
-    role: Role
-    text: str
-    received_at: datetime
+    state: ConversationState = Field(description="Conversation state after this turn.")
+    reply: str = Field(description="The agent's text reply to the caller.")
+    done: bool = Field(description="True when the conversation has reached a terminal state.")
+    turn_index: int = Field(ge=0, description="Zero-based index of this caller turn.")
 
 
 class ErrorDetail(BaseModel):

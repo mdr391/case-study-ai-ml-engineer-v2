@@ -19,7 +19,8 @@ and the git history (the diffs).
 | LLM adapter (step 7) | 16 passed |
 | Diagnostics enhancement | 18 passed |
 | Session service skeleton | 19 passed |
-| Appointment workflow | **24 passed** |
+| Appointment workflow | 24 passed |
+| Workflow wired into session API | **26 passed** |
 
 ---
 
@@ -77,9 +78,15 @@ Deterministic state machine (`appointment/`), not yet committed at time of writi
 - **Results:** 5 workflow tests passed; full suite **24 passed** (Python 3.11.15).
 - **Limitations:** standalone engine — not yet wired into the `POST /sessions/{id}/messages` endpoint; `parse_identity` expects `Lastname YYYY-MM-DD`; verification retry limit 2; booking is a draft only (no real scheduling/EHR write); no real LLM/voice.
 
+## Phase 7 — Wire appointment workflow into the session API
+- **Changed:** `session_service/repository.py` (owns a `ConversationContext` per session, `get_context()`), `session_service/models.py` (echo `MessageAcceptedResponse` → `TurnResponse` carrying `state`/`reply`/`done`/`turn_index`), `session_service/main.py` (module-level `AppointmentWorkflow` + fakes; `POST /sessions/{id}/messages` records the caller turn then advances the workflow), `tests/test_session_smoke.py` (rewritten + HTTP e2e and failed-verification tests).
+- **Behavior:** each posted transcript turn drives the typed state machine; the response returns the agent reply and current `ConversationState`. Full request→verify→reason→slots→read-back→confirm→booked conversation now works over HTTP; duplicate confirmation stays `booked` with no second draft; failed verification hands off.
+- **Results:** session tests 3 passed; full suite **26 passed** (Python 3.11.15).
+- **Limitations:** in-memory singletons (workflow, repository, audit) — state resets on restart; transcript stores caller turns only; a single shared workflow instance across sessions (isolation is via per-session `ConversationContext` + `session_id`-scoped idempotency keys).
+
 ---
 
-## Git / commits (branch `scheduling-engine-slice`, pushed to fork `origin`)
+## Git / commits (fork `origin`, branch `main`)
 | Commit | Summary |
 |---|---|
 | `83258e5` | Read-only scheduling engine slice with search + diagnostics |

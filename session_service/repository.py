@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 
 from pydantic import BaseModel, Field
 
+from appointment.state import ConversationContext
 from session_service.models import Role
 
 
@@ -46,6 +47,7 @@ class InMemorySessionRepository:
 
     def __init__(self) -> None:
         self._sessions: dict[str, Session] = {}
+        self._contexts: dict[str, ConversationContext] = {}
         self._lock = threading.Lock()
 
     def create(
@@ -63,11 +65,19 @@ class InMemorySessionRepository:
         )
         with self._lock:
             self._sessions[session.session_id] = session
+            self._contexts[session.session_id] = ConversationContext(
+                session_id=session.session_id
+            )
         return session
 
     def get(self, session_id: str) -> Session | None:
         with self._lock:
             return self._sessions.get(session_id)
+
+    def get_context(self, session_id: str) -> ConversationContext | None:
+        """Return the appointment-workflow state for a session (or None)."""
+        with self._lock:
+            return self._contexts.get(session_id)
 
     def add_message(self, session_id: str, *, role: Role, text: str) -> StoredMessage | None:
         """Append a message; returns ``None`` if the session does not exist."""

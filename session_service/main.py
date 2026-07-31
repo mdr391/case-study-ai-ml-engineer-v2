@@ -1,4 +1,9 @@
-"""FastAPI entrypoint for the session service skeleton.
+"""FastAPI entrypoint for the session service.
+
+`POST /sessions/{id}/messages` drives the deterministic appointment workflow:
+each transcript turn advances the session's typed ConversationState and returns
+the agent's reply. No real LLM/voice — the workflow uses deterministic rules and
+in-memory fakes.
 
 Run:  uvicorn session_service.main:app --reload
 """
@@ -7,19 +12,33 @@ from __future__ import annotations
 
 from fastapi import FastAPI, HTTPException
 
+from appointment.engine import AppointmentWorkflow
+from appointment.fakes import (
+    FakeHandoffService,
+    FakePatientDirectory,
+    FakeSchedulingProvider,
+    InMemoryAuditSink,
+)
 from session_service.models import (
     CreateSessionRequest,
     HealthResponse,
-    MessageAcceptedResponse,
     MessageRequest,
     SessionCreatedResponse,
+    TurnResponse,
 )
 from session_service.repository import InMemorySessionRepository
 
-app = FastAPI(title="Agent Session Service (skeleton)", version="0.1.0")
+app = FastAPI(title="Agent Session Service", version="0.2.0")
 
-# Module-level singleton is fine for the in-memory skeleton.
+# In-memory singletons for the skeleton/demo.
 repository = InMemorySessionRepository()
+audit_sink = InMemoryAuditSink()
+workflow = AppointmentWorkflow(
+    directory=FakePatientDirectory(),
+    scheduling=FakeSchedulingProvider(),
+    handoff=FakeHandoffService(),
+    audit=audit_sink,
+)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -38,25 +57,24 @@ def create_session(request: CreateSessionRequest | None = None) -> SessionCreate
     )
 
 
-@app.post(
-    "/sessions/{session_id}/messages",
-    response_model=MessageAcceptedResponse,
-)
-def add_message(session_id: str, request: MessageRequest) -> MessageAcceptedResponse:
+@app.post("/sessions/{session_id}/messages", response_model=TurnResponse)
+def add_message(session_id: str, request: MessageRequest) -> TurnResponse:
     session = repository.get(session_id)
-    if session is None:
+    context = repository.get_context(session_id)
+    if session is None or context is None:
         raise HTTPException(
             status_code=404,
             detail={"error": "session_not_found", "message": f"No session '{session_id}'."},
         )
-    message = repository.add_message(session_id, role=request.role, text=request.text)
-    assert message is not None  # session existed under the same repository lock scope
-    return MessageAcceptedResponse(
+    # Record the caller's transcript turn, then advance the workflow.
+    stored = repository.add_message(session_id, role=request.role, text=request.text)
+    assert stored is not None
+    reply = workflow.handle(context, request.text)
+    return TurnResponse(
         session_id=session.session_id,
         trace_id=session.trace_id,
-        message_id=message.message_id,
-        index=message.index,
-        role=message.role,
-        text=message.text,
-        received_at=message.received_at,
+        state=reply.state,
+        reply=reply.message,
+        done=reply.done,
+        turn_index=stored.index,
     )
